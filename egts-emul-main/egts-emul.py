@@ -123,6 +123,8 @@ class EGTStrack(object):
         rst = b'\x01'  # recipient service type 1 byte
         rfl = b'\x00'  # record flags
         rl = b'\x0000'  # record length
+        if self._rn == 65535:
+            self._rn = 0
         rn = self._rn.to_bytes(2, byteorder='little')  # record number
         if record_types == 1:
             _oid = self._tid.to_bytes(4, byteorder='little')
@@ -247,7 +249,8 @@ class EGTStrack(object):
         getBytes += packetHL
         getBytes += packetHE
         getBytes += self._fdl  # .to_bytes(2, byteorder='big')
-        # print(self._pid.to_bytes(2, byteorder='little'))
+        if self._pid == 65535:
+            self._pid = 0
         getBytes += self._pid.to_bytes(2, byteorder='little')
         logging.info(f"rtr {getBytes}")
         getBytes += self._pt
@@ -283,41 +286,45 @@ class EGTStrack(object):
         return crc
 
 
-sock = socket.socket()
-while True:
-    try:
-        sock.connect(('127.0.0.1', 65432))  # Connecting Yandex.Routing
-    except Exception:
-        logging.info("The connection to the server is not established")
-    else:
-        break
-cmd1 = EGTStrack(deviceid="111111111", deviceimei="865811111111111")  # Create a class and configure the device
-message_connect = cmd1.new_message()  # get message
-# my_file = open("some.txt", "a")
-# my_file.write('{}\n'.format(message_connect.hex()))
-# my_file.close()
-# print('CLT >> "{}"'.format(message_b.hex()))
-logging.info(f"CLT 1 >> {format(message_connect.hex())}")
-sock.sendall(message_connect)  # sends a message to the server
-recv_b = sock.recv(256)  #
-# print('SRV >> "{}"'.format(recv_b.hex()))
-logging.info(f"SRV 2 >> {format(recv_b.hex())}")
+def socketRun():
+    sock = socket.socket()
+    while True:
+        try:
+            sock.connect(('127.0.0.1', 5555))  # Connecting Yandex.Routing
+        except Exception:
+            logging.info("The connection to the server is not established")
+        else:
+            break
+    cmd1 = EGTStrack(deviceid="111111111", deviceimei="865811111111111")  # Create a class and configure the device
+    message_connect = cmd1.new_message()  # get message
+    logging.info(f"CLT 1 >> {format(message_connect.hex())}")
+    sock.sendall(message_connect)  # sends a message to the server
+    recv_b = sock.recv(1500)  #
+    logging.info(f"SRV 2 >> {format(recv_b.hex())}")
+    transferTransportPackage(cmd1, sock)
+
+
 # Example geopoints
+
 masspoint = coordinateGenerator.randlatlon2r()
 
-while True:
-    for gpoint in masspoint:
-        cmd1.add_service(16, long=gpoint['long'], lat=gpoint['lat'], speed=gpoint['speed'])
-        message_b = cmd1.new_message()
-        logging.info(f"CLT >> {format(message_b.hex())}")
-        sock.sendall(message_b)
-        recv_b = sock.recv(256)
-        logging.info(f"SRV >> {format(recv_b.hex())}")
-        logging.info(f"Messages for the server: {message_b}")
-#  my_file = open("some.txt", "a")
-# my_file.write('{}\n'.format(message_b.hex()))
-# my_file.close()
-        time.sleep(0)
-        logging.info(f"length bytes massage {len(message_b.hex())}")
-        logging.info(f"The transmitted message is hexadecimal: {format(message_b.hex())}")
-sock.close()
+
+def transferTransportPackage(cmd1, sock):
+    while True:
+        try:
+            for gpoint in masspoint:
+                cmd1.add_service(16, long=gpoint['long'], lat=gpoint['lat'], speed=gpoint['speed'])
+                message_b = cmd1.new_message()
+                logging.info(f"CLT >> {format(message_b.hex())}")
+                sock.sendall(message_b)
+                recv_b = sock.recv(1500)
+                logging.info(f"SRV >> {format(recv_b.hex())}")
+                time.sleep(0.01)
+                logging.info(f"The transmitted message is hexadecimal: {format(message_b.hex())}")
+        except (EOFError, IOError):
+            sock.close()
+            socketRun()
+    sock.close()
+socketRun()
+
+
